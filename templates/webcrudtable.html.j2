@@ -1,0 +1,248 @@
+{% extends "base.html.j2" %}
+
+{% block main %}
+<div x-data="{ editidx: null, editobj: null, pagedata: {entries: [], totalcount: 0}, searchstr: null, activepage: 0, pagesize: 100 }"
+x-init="pagedata=await get_list(activepage,pagesize,searchstr);"
+@alpine-search-message.window="searchstr=$event.detail.searchstr; pagedata=await get_list(activepage,pagesize,searchstr);">
+  <div class="container" id="content">
+    <h3>{{ crudname }}</h3>
+    <template x-if="searchstr != null">
+      <p>Search result for: <span x-text="searchstr"></span></p>
+    </template>
+    <div class="row my-5">
+      <table class="table">
+        <thead>
+          <tr>
+{% for crdcolname,crdcoltype,crdcolparam in cruddef %}
+{% if crdcolparam.show_in_table | default(True) %}
+{% if crdcolparam.column_name %}
+            <th>{{ crdcolparam.column_name }}</th>
+{% else %}
+            <th>{{ crdcolname }} ({{ crdcoltype }})</th>
+{% endif %}
+{% endif %}
+{% endfor %}
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="[ridx,row] in pagedata.entries">
+            <tr class="table-default">
+{% for crdcolname,crdcoltype,crdcolparam in cruddef %}
+{% if crdcolparam.show_in_table | default(True) %}
+{% if crdcolparam.preformat | default(False) %}
+              <td class="font-monospace">
+{% else %}
+              <td>
+{% endif %}
+{% if crdcoltype == "list" %}
+                <ul>
+                <template x-for="v in row.{{ crdcolname }}">
+                <li><span x-text="v"></li>
+                </template>
+                </ul>
+{% else %}
+{% if crdcolparam.href | default(None) %}
+                <a x-bind:href="'{{ crdcolparam.href }}'+ridx" x-text="row.{{ crdcolname }}"></a>
+{% else %}
+                <span x-text="row.{{ crdcolname }}"></span>
+{% endif %}
+{% endif %}
+              </td>
+{% endif %}
+{% endfor %}
+              <td>
+{% if not pageopts.readonly | default(False) %}
+                <button type="button" data-bs-toggle="modal" data-bs-target="#CRUDModal" @click="editidx=ridx; editobj=row;" class="btn btn-outline-primary">Edit</button>
+{% if not pageopts.readonly | default(False) and pageopts.create_enabled | default(True) %}
+                <button type="button" class="btn btn-outline-danger" @click="await delete_instance(ridx); pagedata=await get_list(activepage,pagesize,searchstr);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/>
+                    <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/>
+                  </svg>
+                </button>
+{% endif %}
+{% endif %}
+              </td>
+            </tr>
+          </template>
+{% if not pageopts.readonly | default(False) and pageopts.create_enabled | default(True) %}
+          <tr>
+{% for crdcolname,crdcoltype,crdcolparam in cruddef %}
+{% if crdcolparam.show_in_table | default(True) %}
+            <td></td>
+{% endif %}
+{% endfor %}
+            <td>
+              <button type="button" data-bs-toggle="modal" data-bs-target="#CRUDModal" @click="editidx=false; editobj=initnewobj();" class="btn btn-outline-primary">New</button>
+            </td>
+          </tr>
+{% endif %}
+        </tbody>
+      </table>
+
+      <p>
+        Total entries: <span x-text="pagedata.totalcount"></span>
+      </p>
+      <nav aria-label="paginate">
+        <ul class="pagination">
+          <li class="page-item" x-bind:class="activepage==0?'disabled':''">
+            <a href="#" class="page-link"
+              @click="activepage=activepage-1; pagedata=await get_list(activepage,pagesize,searchstr);">Previous</a>
+          </li>
+          <template
+            x-for="pnr in Array.from(Array.from({ length: Math.floor(pagedata.totalcount/pagesize)+1 }).keys())">
+            <li class="page-item" x-bind:class="activepage==pnr?'active':''">
+              <a href="#" class="page-link"
+                @click="activepage=pnr; pagedata=await get_list(activepage,pagesize,searchstr);">
+                <span x-text="pnr+1"></span>
+                <template x-if="pnr == activepage">
+                  <span class="visually-hidden">(current)</span>
+                </template>
+              </a>
+            </li>
+          </template>
+          <li class="page-item" x-bind:class="activepage>=Math.floor(pagedata.totalcount/pagesize)?'disabled':''">
+            <a href="#" class="page-link"
+              @click="activepage=activepage+1; pagedata=await get_list(activepage,pagesize,searchstr);">Next</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </div>
+
+  <div class="modal fade" id="CRUDModal" tabindex="-1" aria-labelledby="CRUDModal" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-fullscreen-lg-down">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="CRUDModalLabel">{{ crudname }} edit</h1>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @click="editidx=null; pagedata=await get_list(activepage,pagesize,searchstr);"></button>
+          </div>
+          <template x-if="editidx != null">
+            <form>
+              <div class="modal-body">
+                {% if pageopts.edit_header %} <p>{{ pageopts.edit_header }}</p> {% endif %}
+
+                <!--<p>
+                  <span x-text="JSON.stringify(editobj);"></span>
+                </p>-->
+{% for crdcolname,crdcoltype,crdcolparam in cruddef %}
+{% if crdcolparam.show_in_edit | default(True) %}
+{% if crdcolparam.selector is defined %}
+                <template x-if="editobj.{{ crdcolparam.selector }} == '{{ crdcolparam.selector_value }}'">
+{% endif %}
+{% if crdcoltype == 'switch' %}
+                <div class="form-check form-switch my-4 mx-3">
+                  <input class="form-check-input" style="transform: scale(1.8);" type="checkbox" role="switch" id="{{ crdcolname }}" x-model="editobj.{{ crdcolname }}">
+                  <label class="form-check-label mx-4" for="{{ crdcolname }}">{% if crdcolparam.column_name %}{{ crdcolparam.column_name }}{% else %}{{ crdcolname }}{% endif %}</label>
+                </div>
+{% else %}
+                <div class="form-group my-3">
+                  <label class="col-sm-2 col-form-label" for="{{ crdcolname }}">{% if crdcolparam.column_name %}{{ crdcolparam.column_name }}{% else %}{{ crdcolname }}{% endif %}</label>
+{% if crdcoltype == 'input' %}
+                  <input type="{{ crdcolparam.type }}" class="form-control{% if crdcolparam.preformat | default(False) %} font-monospace{% endif %}"
+                    id="{{ crdcolname }}" name="{{ crdcolname }}" placeholder=""
+                    x-model="editobj.{{ crdcolname }}"{% if crdcolparam.readonly | default(False) %} readonly{% endif %}>
+{% endif %}
+{% if crdcoltype == 'select' %}
+                  <select id="{{ crdcolname }}" name="{{ crdcolname }}" x-model="editobj.{{ crdcolname }}" class="form-select{% if crdcolparam.preformat | default(False) %} font-monospace{% endif %}"{% if crdcolparam.__selector_for__ is defined %}@change="editobj.{{ crdcolparam.__selector_for__ }} = {};"{% endif %}>
+{% for o in crdcolparam.options %}
+                    <option value="{{ o }}">{{ o }}</option>
+{% endfor %}
+                  </select>
+{% endif %}
+{% if crdcoltype == "list" %}
+                    <template x-for="(v,i) in editobj.{{ crdcolname }}">
+                      <div class="input-group mb-3">
+                        <input type="{{ crdcolparam.type }}" class="form-control{% if crdcolparam.preformat | default(False) %} font-monospace{% endif %}"
+                    id="$id('{{ crdcolname }}')" name="$id('{{ crdcolname }}')" x-model="editobj.{{ crdcolname }}[i]">
+                        <div class="input-group-append">
+                          <button type="button" class="btn btn-outline-danger" @click="editobj.{{ crdcolname }}.splice(i,1);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                              <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/>
+                              <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </template>
+                    <button type="button" class="btn btn-outline-primary" @click="editobj.{{ crdcolname }}.push(null);">+</button>
+{% endif %}
+                </div>
+{% endif %}
+
+{% if crdcolparam.selector is defined %}
+                </template>
+{% endif %}
+
+{% endif %}
+{% endfor %}
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" @click="await submit_instance(editidx, editobj); editidx=null; pagedata=await get_list(activepage,pagesize,searchstr);">Save</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @click="editidx=null; pagedata=await get_list(activepage,pagesize,searchstr);">Cancel</button>
+              </div>
+            </form>
+          </template>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block script %}
+    <script>
+      function initnewobj() {
+        o = {};
+{% for crdcolname,crdcoltype,crdcolparam in cruddef %}
+{% if crdcolparam.default_value_js is defined and crdcolparam.default_value_js %}
+        o.{{ crdcolname }} = {{ crdcolparam.default_value_js | safe }};
+{% else %}
+{% if crdcoltype == "list" %}
+        o.{{ crdcolname }} = [];
+{% else %}
+        //o.{{ crdcolname }} = null;
+{% endif %}
+{% endif %}
+{% endfor %}
+        return o;
+      }
+
+      async function get_list(page, pagelen, searchstr=null) {
+        params = {'page': page, 'pagelen': pagelen};
+        if (searchstr != null)
+          params['search'] = searchstr;
+        let url = '{{ crudurl }}?' + new URLSearchParams(params);
+        const response = await fetch(url);
+        if (!response.ok) alert(`API fetch list ${url} failed: ${response.status} : ${response.statusText}`);
+        return await response.json();
+      }
+
+      async function get_instance(idx) {
+        const response = await fetch('{{ crudurl }}/' + idx);
+        if (!response.ok) alert(`API fetch {{ crudurl }}/${idx} failed: ${response.status} : ${response.statusText}`);
+        return await response.json();
+      }
+
+      async function delete_instance(idx) {
+        const response = await fetch('{{ crudurl }}/' + idx, { 'method': 'DELETE' });
+        if (!response.ok) alert(`API delete {{ crudurl }}/${idx} failed: ${response.status} : ${response.statusText}`);
+
+        return await response.json();
+      }
+
+      async function submit_instance(idx, formdata) {
+        if (idx == false) {
+          const response = await fetch('{{ crudurl }}', { 'method': 'POST', 'headers': { 'Content-Type': 'application/json' }, 'body': JSON.stringify(formdata) });
+          if (!response.ok) alert(`API create {{ crudurl }} failed: ${response.status} : ${response.statusText}`);
+          return await response.json();
+        } else {
+          const response = await fetch('{{ crudurl }}/' + idx, { 'method': 'PUT', 'headers': { 'Content-Type': 'application/json' }, 'body': JSON.stringify(formdata) });
+          if (!response.ok) alert(`API update {{ crudurl }}/${idx} failed: ${response.status} : ${response.statusText}`);
+          return await response.json();
+        }
+      }
+    </script>
+{% endblock %}

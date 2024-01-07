@@ -1,0 +1,28 @@
+{% extends "base.html.j2" %}
+
+{% block main %}
+  <div x-data="{showreport: {{ showreport }}, reportdata: { report: null }}" x-init="reportdata=await get_report(showreport);">
+
+      <div class="container" id="content">
+        <h3>Report <span x-text="showreport"></h3>
+        <div class="row my-5">
+          <div x-data="{activepage: 0, pagesize: 100}">
+            <pre><span x-text="reportdata.report"></span></pre>
+          </div>
+        </div>
+      </div>
+
+  </div>
+{% endblock %}
+
+{% block script %}
+  <script>
+    async function get_report(rid) {
+      const response = await fetch('{{ prefix }}/web/v1/reportdata/' + rid);
+      if (!response.ok) alert(`API fetch report failed: ${response.status} - ${response.statusText}`);
+      x = await response.json();
+      console.log(x);
+      return x;
+    }
+  </script>
+{% endblock %}
