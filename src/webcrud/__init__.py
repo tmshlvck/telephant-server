@@ -1,6 +1,7 @@
 import typing
 from typing import Annotated,Optional,Tuple,List,Dict,Any,Type,Callable
 import inspect
+import copy
 from pydantic import BaseModel
 from enum import Enum,EnumType
 from datetime import datetime,date
@@ -20,7 +21,7 @@ class WebCRUD:
                  pagename:Optional[str] =None,
                  readonly: bool =False,
                  urlprefix: str ='',
-                 formatting_hints:Dict[str,Any] ={}):
+                 formatting_hints: Dict[str,Any] ={}):
         """
         formatting_hints = {
             'struct_var_name' : {
@@ -36,7 +37,12 @@ class WebCRUD:
                 'selector': "NameOfSelectorItem", # makes sense only for nested structures under Union type
                 'selector_map': {'A': 'ARecord', 'selector_value': 'EnumTypeName'}
             },
-            '__page__': { 'search_enabled': False, 'create_enabled': True, 'readonly': False}
+            '__page__': { 'search_enabled': False,
+                          'create_enabled': True,
+                          'delete_enabled': True,
+                          'edit_enabled': True,
+                          'readonly': False
+                        }
         }
         """
         self.app = app
@@ -48,13 +54,11 @@ class WebCRUD:
             self.pagename = self.cls.__name__
         self.readonly = readonly
         self.urlprefix = urlprefix
-        self.formatting_hints = formatting_hints
-        if self.readonly:
-            if not '__page__' in self.formatting_hints:
-                self.formatting_hints['__page__'] = {}
-            self.formatting_hints['__page__']['readonly'] = True
+        self.formatting_hints = copy.deepcopy(formatting_hints)
+        if not '__page__' in self.formatting_hints:
+            self.formatting_hints['__page__'] = {}
+        self.formatting_hints['__page__']['readonly'] = self.readonly
 
-    
     def generate_jinja_struct(self, input=None, parent_name=None):
         if input == None:
             input = self.cls.__annotations__
@@ -176,7 +180,7 @@ class WebCRUD:
                                         backend_update: Optional[Callable[[Request, int, Type[BaseModel]], None]] =None,
                                         backend_delete: Optional[Callable[[Request, int], None]] =None ):
 
-        crudurl = '/web/v1/'+self.cls.__name__.lower()
+        crudurl = self.get_endpoint_path()
 
         class Pagination(BaseModel):
             entries: List[Tuple[int,self.cls]]
