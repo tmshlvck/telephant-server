@@ -1,4 +1,6 @@
 test/server-config-goole-token.yaml
+test/reports/
+test/telephant.sqlite
 dist/
 __pycache__/
 *.py[cod]
