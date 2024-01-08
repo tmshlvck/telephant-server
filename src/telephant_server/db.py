@@ -22,6 +22,7 @@ from sqlmodel import Field, Relationship, Session, SQLModel, create_engine, sele
 import datetime
 import enum
 import ipaddress
+import logging
 
 
 from passlib.context import CryptContext
@@ -273,8 +274,6 @@ def index_ip(rid: int, ip: ipaddress.IPv6Address | ipaddress.IPv4Address, role: 
 
 
 def index_report(rid, report):
-
-    # TODO: test that report group is allowed for the user and record report-group
     gid = report.get("group", None)
     if gid:
         with Session(engine) as session:
@@ -284,7 +283,7 @@ def index_report(rid, report):
                 r.group_id = g.group_id
                 session.commit()
             else:
-                print(f"Warn: Invalid group reported in report {rid}")
+                logging.warning(f"Invalid group reported in report {rid}")
 
     for ip in report.get('host_ip_address', []):
         index_ip(rid, ipaddress.ip_address(ip), IPRole.SRC)
@@ -356,7 +355,7 @@ class ReportsCRUD(webcrud.WebCRUD):
                     return add_ip4_statement(statement, searchnet)
             except:
                 pass
-                #print(traceback.format_exc())
+                #logging.exception("Failed parsing search IPs.")
             try:
                 m = self.asnmatch.match(search.strip())
                 if m:
@@ -377,7 +376,7 @@ class ReportsCRUD(webcrud.WebCRUD):
         usereml = telephant_server.auth.get_user_email(request)
         with Session(engine) as session:
             total = session.exec(self._search_statement(usereml, search, select(func.count(Report.report_id)))).one()
-            result = [(dbreport.report_id, self.db2web(dbreport)) for dbreport in session.exec(self._search_statement(search).offset(offset).limit(count)).all()]
+            result = [(dbreport.report_id, self.db2web(dbreport)) for dbreport in session.exec(self._search_statement(usereml, search).offset(offset).limit(count)).all()]
             return (result, total)
         
     def get(self, _: Request, id: int) -> ReportMeta:
@@ -389,8 +388,18 @@ class ReportsCRUD(webcrud.WebCRUD):
         self.generate_backend_crud_endpoints(self.search, self.get)
 
 
+
 class MyReportsCRUD(ReportsCRUD):
+    def __init__(self, app: FastAPI, template_engine: Jinja2Templates, urlprefix: str =''):
+        pass
+        super(ReportsCRUD, self).__init__(app, template_engine, ReportMeta, 'My Reports', readonly=False, urlprefix=urlprefix, formatting_hints=self.FORMATTING_HINTS)
+        self.formatting_hints['__page__'] = {'readonly': False, 'search_enabled': True, 'create_enabled': False, 'edit_enabled': False}
+
+    def get_endpoint_path(self):
+        return f'/web/v{self.APIVERSION}/myreportmeta'
+
     def _search_statement(self, usereml: Optional[str], search: Optional[str] =None, statement=select(Report)):
+        statement = statement.join(User).where(User.email == usereml)
         if search:
             try:
                 searchnet = ipaddress.ip_network(search)
@@ -401,7 +410,7 @@ class MyReportsCRUD(ReportsCRUD):
                     return add_ip4_statement(statement, searchnet)
             except:
                 pass
-                #print(traceback.format_exc())
+                #logging.exception("Failed parsing search IPs.")
             try:
                 m = self.asnmatch.match(search.strip())
                 if m:
@@ -416,8 +425,24 @@ class MyReportsCRUD(ReportsCRUD):
             except:
                 pass
         
-        return statement.join(User).where(User.email == usereml)
+        return statement
 
+    def delete(self, request: Request, id: int):
+        usereml = telephant_server.auth.require_user_email(request)
+        with Session(engine) as session:
+            r = session.exec(select(Report).join(User).where(Report.report_id == id).where(User.email == usereml)).one()
+            for rip in session.exec(select(ReportIP).where(ReportIP.report_id == r.report_id)):
+                session.delete(rip)
+            session.refresh(r)
+            session.delete(r)
+            session.commit()
+            try:
+                os.unlink(r.filename)
+            except Exception as e:
+                logging.exception(f"Failed deleting report {id}.")
+
+    def generate_crud_endpoints(self):
+        self.generate_backend_crud_endpoints(self.search, self.get, None, None, self.delete)
 
 
 #class Test1(BaseModel):
@@ -711,7 +736,7 @@ class UsersCRUD(webcrud.WebCRUD):
                     try:
                         os.unlink(r.filename)
                     except Exception as e:
-                        print(e)
+                        logging.exception(f"Failed deleting report {id}.")
                     session.delete(r)
                 
                 for ug in session.exec(select(UserGroup).where(UserGroup.user_id)).all():

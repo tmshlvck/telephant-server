@@ -159,7 +159,7 @@ def create_app(config):
         return reportscrud.generate_template_response(request, pagedata, template='webcrudtable.html.j2')
     
     @app.get("/myreports", response_class=HTMLResponse)
-    async def get_myreports(request: Request, showreport: Optional[str] =None):
+    async def get_myreports(request: Request):
         return myreportscrud.generate_template_response(request, gen_basedata(request), template='webcrudtable.html.j2')
     
     @app.get("/groups", response_class=HTMLResponse)
