@@ -25,6 +25,8 @@ cp server-config.yaml /srv/telephant_server/
 vi /srv/telephant_server/server-config.yaml
 
 sudo podman run --privileged --network=host --name telephant_server -d -v /srv/telephant_server:/data telephant_server
+sudo podman run --privileged --network=host --name telephant_server -d -v /srv/telephant_server:/data telephant_server
 sudo podman generate systemd --new --files --name telephant_server
-sudo systemctl enable telephant_server
+sudo mv container-telephant_server.service /etc/systemd/system/
+sudo systemctl enable container-telephant_server
 ```

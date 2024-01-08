@@ -5,6 +5,7 @@ RUN mkdir /ts
 RUN mkdir /data
 COPY . /ts
 WORKDIR /ts
-RUN poetry install
-ENV TELEPHANT_SERVER_CONFIG=/data/server-config.yaml;
-ENTRYPOINT ["telephant-server"]
+RUN poetry config virtualenvs.create false
+RUN poetry install --no-dev --no-interaction --no-ansi
+ENV TELEPHANT_SERVER_CONFIG=/data/server-config.yaml
+ENTRYPOINT ["/usr/bin/telephant_server"] 
