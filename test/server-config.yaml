@@ -6,15 +6,13 @@ listen_address: '::'
 listen_port: 8080
 reports_dir: 'test/reports/'
 url_base: https://www.telephant.eu/
+max_report_size: 1048576
 index_ip_filter: 'public'
-
 session_secret: 'abcdefgh'
-
+db_sqlite: 'sqlite:///./test/telephant.sqlite'
 auth:
   google:
     client_id: 'xxxxxxxxxxxx'
     client_secret: 'xxxxxxxxxxxxx'
-
-db_sqlite: 'sqlite:///./test/telephant.sqlite'
 admins:
   'tmshlvck@gmail.com': 'initpassword'

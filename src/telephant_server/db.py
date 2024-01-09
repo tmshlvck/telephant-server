@@ -318,6 +318,7 @@ class ReportsCRUD(webcrud.WebCRUD):
                       'created_ts': {'column_name': 'Created'},
                       'sips':{'column_name': 'Source IPs'},
                       'dips':{'column_name': 'Destination IPs'},
+                      'asns':{'column_name': 'Autonomous Systems'},
                       '__page__': {'search_enabled': True, }
                       }
     

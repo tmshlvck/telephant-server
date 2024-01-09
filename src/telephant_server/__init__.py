@@ -109,6 +109,12 @@ def create_app(config):
     async def post_report(request: Request, data: ReportData, user: telephant_server.db.User =Security(get_user_from_key)) -> ReportAccepted:
         ts = datetime.datetime.utcnow()
 
+        if len(data.report) > config.get('max_report_size', 1048576):
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Maximum report size {config.get('max_report_size', 1048576)} exceeded.",
+            )
+
         report_content = yaml.load(data.report, Loader=yaml.Loader)
 
         rdir = os.path.abspath(os.path.join(config.get('reports_dir','/telephant/reports'),f"{ts.year}-{ts.month}-{ts.day}"))
