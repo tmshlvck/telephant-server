@@ -314,7 +314,7 @@ class ReportMeta(BaseModel):
 
 class ReportsCRUD(webcrud.WebCRUD):
     FORMATTING_HINTS={'report_id':{'href':'/report?showreport=', 'column_name': 'Report ID'},
-                      'reporter': {'column_name': 'Reporter'},
+                      'reporter': {'column_name': 'Reporter', 'show_in_table': False},
                       'created_ts': {'column_name': 'Created'},
                       'sips':{'column_name': 'Source IPs'},
                       'dips':{'column_name': 'Destination IPs'},
