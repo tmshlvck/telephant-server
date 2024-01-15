@@ -46,7 +46,7 @@ from pydantic import BaseModel
 from fastapi import Depends, FastAPI, Request, Security, status, Form
 from fastapi.security import APIKeyHeader
 from fastapi.exceptions import HTTPException,RequestValidationError
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 #from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -199,6 +199,12 @@ def create_app(config):
 
     telephant_server.auth.create_auth(app, get_root)
 
+    @app.get('/robots.txt', response_class=PlainTextResponse)
+    async def robots():
+        return """User-agent: *\nDisallow: /"""
+
+
+    # end of WebApp endpoint definitions
     return app
 
 app = create_app(config)
