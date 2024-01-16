@@ -44,6 +44,7 @@ class ReportIP(SQLModel, table=True):
     role: IPRole =Field(sa_column=Column(Enum(IPRole)))
 
 class IPAddress(SQLModel, table=True):
+    __table_args__ = {'sqlite_autoincrement': True}
     ip_id: Optional[int] =Field(default=None, primary_key=True)
     afi: int =Field(index=True)
     a0: int =Field(index=True)
@@ -65,6 +66,7 @@ class UserGroup(SQLModel, table=True):
     group_id: Optional[int] =Field(default=None, foreign_key="group.group_id", primary_key=True)
 
 class User(SQLModel, table=True):
+    __table_args__ = {'sqlite_autoincrement': True}
     user_id: Optional[int] = Field(default=None, primary_key=True)
     email: str
     fullname: str
@@ -77,6 +79,7 @@ class User(SQLModel, table=True):
     reports: Optional[List["Report"]] =Relationship(back_populates="reporter")
 
 class Group(SQLModel, table=True):
+    __table_args__ = {'sqlite_autoincrement': True}
     group_id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     created_ts: datetime.datetime =Field(default_factory=datetime.datetime.utcnow, nullable=False)
@@ -89,7 +92,10 @@ class ApiKey(SQLModel, table=True):
     created_ts: datetime.datetime =Field(default_factory=datetime.datetime.utcnow, nullable=False)
     user: User =Relationship(back_populates="api_keys")
 
+from sqlalchemy import Integer
+
 class Report(SQLModel, table=True):
+    __table_args__ = {'sqlite_autoincrement': True}
     report_id: Optional[int] =Field(default=None, primary_key=True)
     filename: Optional[str] =Field(nullable=True)
     created_ts: datetime.datetime =Field(default_factory=datetime.datetime.utcnow, nullable=False)
@@ -103,7 +109,7 @@ class Report(SQLModel, table=True):
 
 
 
-engine = create_engine(telephant_server.config['db_sqlite'])
+engine = create_engine(telephant_server.config['db_sqlite'], echo=True)
 SQLModel.metadata.create_all(engine)
 
 ### sqlite3-specific CIRD implementation
@@ -332,10 +338,10 @@ class ReportsCRUD(webcrud.WebCRUD):
             sips = session.exec(select(IPAddress).join(ReportIP).join(Report).where(Report.report_id == dbreport.report_id).where(ReportIP.role == IPRole.SRC)).all()
             dips = session.exec(select(IPAddress).join(ReportIP).join(Report).where(Report.report_id == dbreport.report_id).where(ReportIP.role == IPRole.DST)).all()
 
-        asns = set()
-        for ip in dbreport.ips:
-            for asnobj in ip.asns:
-                asns.add(asnobj.asn)
+            asns = set()
+            for ip in sips + dips:
+                for asnobj in ip.asns:
+                    asns.add(asnobj.asn)
 
         return ReportMeta(report_id=dbreport.report_id,
                           reporter=dbreport.reporter.email,
@@ -361,7 +367,7 @@ class ReportsCRUD(webcrud.WebCRUD):
                 m = self.asnmatch.match(search.strip())
                 if m:
                     asn = int(m.group(1))
-                    return statement.distinct(Report.report_id).join(ReportIP).join(IPAddressASN).where(IPAddressASN.asn == asn)
+                    return statement.distinct(Report.report_id).join(ReportIP).join(IPAddressASN, ReportIP.ip_id == IPAddressASN.ip_id).where(IPAddressASN.asn == asn)
             except:
                 pass
                 
@@ -653,7 +659,7 @@ class UserIO(BaseModel):
 class UsersCRUD(webcrud.WebCRUD):
     FORMATTING_HINTS={'user_id':{'column_name': 'User ID', 'show_in_edit': False},
                       'email':{'column_name': 'E-Mail'},
-                      'fullname':{'column_name': 'E-Mail'},
+                      'fullname':{'column_name': 'Full Name'},
                       'enabled':{'column_name': 'Enabled'},
                       'password':{'column_name': 'Password', 'show_in_table': False},
                       'created_ts':{'column_name': 'Created', 'show_in_edit': False},
