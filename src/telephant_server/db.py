@@ -208,6 +208,7 @@ def login_user_google(user_data) -> User:
             if u:
                 u.lastlogin_ts = datetime.datetime.utcnow()
                 session.commit()
+                session.refresh(u)
             else:
                 u = User(email=eml, fullname=fn, created_ts=datetime.datetime.utcnow(), enabled=True, lastlogin_ts=datetime.datetime.utcnow())
                 session.add(u)
