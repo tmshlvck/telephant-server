@@ -317,15 +317,13 @@ class ReportMeta(BaseModel):
     created_ts: datetime.datetime
     sips: List[str]
     dips: List[str]
-    asns: List[int]
 
 class ReportsCRUD(webcrud.WebCRUD):
     FORMATTING_HINTS={'report_id':{'href':'/report?showreport=', 'column_name': 'Report ID'},
                       'reporter': {'column_name': 'Reporter', 'show_in_table': False},
                       'created_ts': {'column_name': 'Created'},
-                      'sips':{'column_name': 'Source IPs'},
-                      'dips':{'column_name': 'Destination IPs'},
-                      'asns':{'column_name': 'Autonomous Systems'},
+                      'sips':{'column_name': 'Source IPs', 'allow_html': True},
+                      'dips':{'column_name': 'Destination IPs','allow_html': True},
                       '__page__': {'search_enabled': True, }
                       }
     
@@ -335,21 +333,31 @@ class ReportsCRUD(webcrud.WebCRUD):
         super().__init__(app, template_engine, ReportMeta, 'Reports', readonly=True, urlprefix=urlprefix, formatting_hints=self.FORMATTING_HINTS)
 
     def db2web(self, dbreport: Report) -> ReportMeta:
+        def format_ips(ips):
+            res = []
+            for ip in ips:
+                dbip = decode_db_ip(ip)
+                ipf = f"<a href=https://www.radb.net/query?keywords={dbip}>{dbip}</a>"
+                asnf = "("
+                for asnobj in ip.asns:
+                    if len(asnf) > 1:
+                        asnf+=", "
+                    asnf+=f"<a href=https://www.radb.net/query?keywords=AS{asnobj.asn}>AS{asnobj.asn}</a>"
+                asnf+=")"
+                if len(asnf) > 1:
+                    ipf+=" "+asnf
+                res.append(ipf)
+            return res
+
         with Session(engine) as session:
             sips = session.exec(select(IPAddress).join(ReportIP).join(Report).where(Report.report_id == dbreport.report_id).where(ReportIP.role == IPRole.SRC)).all()
             dips = session.exec(select(IPAddress).join(ReportIP).join(Report).where(Report.report_id == dbreport.report_id).where(ReportIP.role == IPRole.DST)).all()
 
-            asns = set()
-            for ip in sips + dips:
-                for asnobj in ip.asns:
-                    asns.add(asnobj.asn)
-
-        return ReportMeta(report_id=dbreport.report_id,
-                          reporter=dbreport.reporter.email,
-                          created_ts=dbreport.created_ts,
-                          sips=list([str(decode_db_ip(ip)) for ip in sips]),
-                          dips=list([str(decode_db_ip(ip)) for ip in dips]),
-                          asns=list(asns))
+            return ReportMeta(report_id=dbreport.report_id,
+                              reporter=dbreport.reporter.email,
+                              created_ts=dbreport.created_ts,
+                              sips=format_ips(sips),
+                              dips=format_ips(dips))
 
 
     def _search_statement(self, _:Optional[str], search: Optional[str] =None, statement=select(Report)):

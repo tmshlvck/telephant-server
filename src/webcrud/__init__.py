@@ -26,6 +26,7 @@ class WebCRUD:
         formatting_hints = {
             'struct_var_name' : {
                 'default_value_js': None, # this has to be JavaScript statement or None
+                'allow_html' : False,
                 'href':'/report?showreport=', # display text as hyperlink to this URL, row_idx will be added to the end
                 'column_name': 'text name',
                 'type': 'text|password',

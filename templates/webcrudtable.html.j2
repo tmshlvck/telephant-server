@@ -38,7 +38,11 @@ x-init="pagedata=await get_list(activepage,pagesize,searchstr);"
 {% if crdcoltype == "list" %}
                 <ul>
                 <template x-for="v in row.{{ crdcolname }}">
+{% if crdcolparam.allow_html %}
+                <li><div x-html="v"></div></li>
+{% else %}
                 <li><span x-text="v"></li>
+{% endif %}
                 </template>
                 </ul>
 {% else %}
