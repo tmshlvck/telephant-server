@@ -109,7 +109,7 @@ class Report(SQLModel, table=True):
 
 
 
-engine = create_engine(telephant_server.config['db_sqlite'], echo=True)
+engine = create_engine(telephant_server.config['db_sqlite'])#, echo=True)
 SQLModel.metadata.create_all(engine)
 
 ### sqlite3-specific CIRD implementation
@@ -630,7 +630,7 @@ class APIKeysCRUD(webcrud.WebCRUD):
             usereml = telephant_server.auth.require_user_email(request)
             with Session(engine) as session:
                 try:
-                    o = session.exec(select(ApiKey).where(ApiKey.group_id == id).where(User.email == usereml)).one()
+                    o = session.exec(select(ApiKey).where(ApiKey.apikey_id == id).where(User.email == usereml)).one()
                 except:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
