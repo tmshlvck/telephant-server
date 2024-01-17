@@ -63,9 +63,10 @@ import telephant_server.auth
 def create_app(config):
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        taul = asyncio.create_task(telephant_server.asn.asn_update_loop())
+        taul = asyncio.create_task(telephant_server.asn.asn_update_loop(config.get('riswhoisdump_cache4_file','/tmp/riswhoisdumpcache4.gz'), config.get('riswhoisdump_cache6_file','/tmp/riswhoisdumpcache6.gz')))
         yield
         taul.cancel()
+        await taul
 
     app = FastAPI(root_path=config.get('root_path','/'), lifespan=lifespan)
 

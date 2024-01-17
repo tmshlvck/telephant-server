@@ -10,6 +10,8 @@ max_report_size: 1048576
 index_ip_filter: 'public'
 session_secret: 'abcdefgh'
 db_sqlite: 'sqlite:///./test/telephant.sqlite'
+riswhoisdump_cache4_file: '/tmp/riswhoisdumpcache4.gz'
+riswhoisdump_cache6_file: '/tmp/riswhoisdumpcache6.gz'
 auth:
   google:
     client_id: 'xxxxxxxxxxxx'

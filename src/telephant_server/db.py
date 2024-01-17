@@ -112,6 +112,16 @@ class Report(SQLModel, table=True):
 engine = create_engine(telephant_server.config['db_sqlite'])#, echo=True)
 SQLModel.metadata.create_all(engine)
 
+def update_ipasn(session, ip: ipaddress.IPv4Address|ipaddress.IPv6Address, dbip: IPAddress):
+    # this has to be run under existing session
+    dbasns = set([ipasnr.asn for ipasnr in session.exec(select(IPAddressASN).where(IPAddressASN.ip_id==dbip.ip_id)).all()])
+    for asn in telephant_server.asn.lookup_asns(ip):
+        if asn in dbasns:
+            continue
+        ipasn = IPAddressASN(ip_id=dbip.ip_id, asn=asn)
+        session.add(ipasn)
+    session.commit()
+
 ### sqlite3-specific CIRD implementation
 def create_ip4(ip: ipaddress.IPv4Address) -> int:
     with Session(engine) as session:
@@ -120,12 +130,9 @@ def create_ip4(ip: ipaddress.IPv4Address) -> int:
         session.commit()
         session.refresh(a)
 
-        for asn in telephant_server.asn.lookup_asns(ip):
-            ipasn = IPAddressASN(ip_id=a.ip_id, asn=asn)
-            session.add(ipasn)
-        session.commit()
+        update_ipasn(session, ip, a)
+
         session.refresh(a)
-        
         return a
 
 
@@ -142,12 +149,9 @@ def create_ip6(ip: ipaddress.IPv6Address) -> int:
         session.commit()
         session.refresh(a)
 
-        for asn in telephant_server.asn.lookup_asns(ip):
-            ipasn = IPAddressASN(ip_id=a.ip_id, asn=asn)
-            session.add(ipasn)
-        session.commit()
-        session.refresh(a)
+        update_ipasn(session, ip, a)
         
+        session.refresh(a)
         return a
 
 
@@ -262,18 +266,24 @@ def index_ip(rid: int, ip: ipaddress.IPv6Address | ipaddress.IPv4Address, role: 
     if not filter_index_ip(ip):
         return
 
-    if ip.version == 6:
-        ipn = ipaddress.IPv6Network(ip)
-        db_ips = list(select_ip6(ipn))
-        if not db_ips:
-            db_ips = [create_ip6(ip),]
-    elif ip.version == 4:
-        ipn = ipaddress.IPv4Network(ip)
-        db_ips = list(select_ip4(ipn))
-        if not db_ips:
-            db_ips = [create_ip4(ip),]
-
     with Session(engine) as session:
+        if ip.version == 6:
+            ipn = ipaddress.IPv6Network(ip)
+            db_ips = list(select_ip6(ipn))
+            if not db_ips:
+                db_ips = [create_ip6(ip),]
+            else:
+                for a in db_ips:
+                    update_ipasn(session, ip, a)
+        elif ip.version == 4:
+            ipn = ipaddress.IPv4Network(ip)
+            db_ips = list(select_ip4(ipn))
+            if not db_ips:
+                db_ips = [create_ip4(ip),]
+            else:
+                for a in db_ips:
+                    update_ipasn(session, ip, a)
+
         if not list(session.exec(select(ReportIP).where(ReportIP.report_id == rid, ReportIP.ip_id == db_ips[0].ip_id, ReportIP.role == role)).all()):
             rip = ReportIP(report_id=rid, ip_id=db_ips[0].ip_id, role=role)
             session.add(rip)

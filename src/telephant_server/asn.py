@@ -3,7 +3,7 @@ import ipaddress
 import logging
 import gzip
 import requests
-from typing import List
+from typing import List,Optional
 
 src4 = "https://www.ris.ripe.net/dumps/riswhoisdump.IPv4.gz"
 src6 = "https://www.ris.ripe.net/dumps/riswhoisdump.IPv6.gz"
@@ -144,30 +144,47 @@ class IPTree:
 lookuptree4 = IPTree(4)
 lookuptree6 = IPTree(6)
 
+import os
+import time
 
-async def create_tree(url: str, version: int) -> IPTree:
+def is_due_refresh(file, hours=24):
+    if not os.path.exists(file):
+        return True
+
+    file_time = os.path.getmtime(file)
+    return ((time.time() - file_time) > hours*3600)
+
+async def create_tree(url: str, cache_file: Optional[str]=None, version: int=4) -> IPTree:
     def gentree():
         t = IPTree(version)
-        try:
-            response = requests.get(url)
-            if response.ok:
-                text = gzip.decompress(response.content).decode()
-        except:
-            logging.exception(f"Download or decompressing of {url} failed.")
-            return None
-
-        for l in text.splitlines():
-            if l.startswith('%') or l.strip() == '':
-                continue
+        if is_due_refresh(cache_file, 23):
+            logging.debug(f"Refreshing cache {cache_file} from {url}")
             try:
-                origin,ipn,_ = l.split()
-                ipno = ipaddress.ip_network(ipn)
-                if not ipno in t:
-                    t[ipno] = []
-                for o in origin.strip().strip('{}').split(','):
-                    t[ipno].append(int(o))
+                response = requests.get(url)
+                if response.ok:
+                    with open(cache_file, 'wb') as fh:
+                        fh.write(response.content)
+                logging.debug(f"Refreshing cache {cache_file} from {url} succeeded: {len(response.content)}.")
             except:
-                logging.debug(f"Failed processing line in {url}: {l}")
+                logging.exception(f"Download or decompressing of {url} failed.")
+                return None
+        else:
+            logging.debug(f"No need to refresh cache {cache_file}")
+        
+        with gzip.open(cache_file, 'r') as cfh:
+            for lb in cfh:
+                l = lb.decode()
+                if l.startswith('%') or l.strip() == '':
+                    continue
+                try:
+                    origin,ipn,_ = l.split()
+                    ipno = ipaddress.ip_network(ipn)
+                    if not ipno in t:
+                        t[ipno] = []
+                    for o in origin.strip().strip('{}').split(','):
+                        t[ipno].append(int(o))
+                except:
+                    logging.debug(f"Failed processing line in {url}: {l}")
         return t
 
     while True:
@@ -177,14 +194,18 @@ async def create_tree(url: str, version: int) -> IPTree:
         else:
             return t
 
-async def asn_update_loop():
+async def asn_update_loop(riswhoisdumpcache4_file: str, riswhoisdumpcache6_file: str):
     global lookuptree4, lookuptree6
-    while True:
-        logging.debug("ASN tree refresh starting...")
-        lookuptree4 = await create_tree(src4, 4)
-        lookuptree6 = await create_tree(src6, 6)
-        logging.debug("ASN tree refresh finished.")
-        await asyncio.sleep(3600*24)
+    try:
+        while True:
+            logging.debug("ASN tree refresh starting...")
+            lookuptree4 = await create_tree(src4, riswhoisdumpcache4_file, 4)
+            lookuptree6 = await create_tree(src6, riswhoisdumpcache6_file, 6)
+            logging.debug("ASN tree refresh finished.")
+            await asyncio.sleep(3600*24)
+    except:
+        logging.exception("asn_update_loop exception:")
+        raise
 
 
 def lookup_asns(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> List[int]:
